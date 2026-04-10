@@ -70,6 +70,15 @@ static void adc2_dump_regs_once(void) {
         (unsigned long)ADC2->CFGR2,
         (unsigned long)ADC2->SQR1,
         (unsigned long)ADC2->SMPR1);
+  print("[adc] regs difsel=0x%08lx calfact=0x%08lx ccr=0x%08lx",
+        (unsigned long)ADC2->DIFSEL,
+        (unsigned long)ADC2->CALFACT,
+        (unsigned long)ADC12_COMMON->CCR);
+  print("[adc] regs ofr1=0x%08lx ofr2=0x%08lx ofr3=0x%08lx ofr4=0x%08lx",
+        (unsigned long)ADC2->OFR1,
+        (unsigned long)ADC2->OFR2,
+        (unsigned long)ADC2->OFR3,
+        (unsigned long)ADC2->OFR4);
 }
 
 static bool adc1_read_vrefint(uint16_t* vref_raw) {
