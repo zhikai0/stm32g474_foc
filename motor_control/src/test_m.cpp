@@ -5,9 +5,121 @@
 #include "board_support.hpp"  // HAL 外设头文件 + print/sleep/print_memory_usage/sys_init
 #include "test_m.hpp"
 
-static uint16_t adc2_scan_raw[2] = {0, 0}; // [0]=PA6/ADC2_IN3, [1]=PA7/ADC2_IN4
+static uint16_t adc2_scan_raw[2] = {0, 0}; // [0]=unused, [1]=PA7/ADC2_IN4
 
-auto test_pair(auto x) {
+static bool adc_poll_single_rank(ADC_HandleTypeDef* hadc, uint16_t* raw) {
+  if (HAL_ADC_Start(hadc) != HAL_OK) {
+    return false;
+  }
+  if (HAL_ADC_PollForConversion(hadc, 20) != HAL_OK) {
+    HAL_ADC_Stop(hadc);
+    return false;
+  }
+  *raw = (uint16_t)HAL_ADC_GetValue(hadc);
+  HAL_ADC_Stop(hadc);
+  return true;
+}
+
+static bool adc2_read_channel_stable(uint32_t channel, uint16_t* raw_first, uint16_t* raw_second) {
+  ADC_ChannelConfTypeDef sConfig = {};
+  sConfig.Channel = channel;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_640CYCLES_5;
+  sConfig.SingleDiff = ADC_SINGLE_ENDED;
+  sConfig.OffsetNumber = ADC_OFFSET_NONE;
+  sConfig.Offset = 0;
+
+  (void)HAL_ADC_Stop(&hadc2);
+  if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK) {
+    print("[adc] cfg ch=%lu failed", (unsigned long)channel);
+    return false;
+  }
+
+  uint16_t first = 0;
+  uint16_t second = 0;
+  if (!adc_poll_single_rank(&hadc2, &first)) {
+    print("[adc] read1 ch=%lu failed", (unsigned long)channel);
+    return false;
+  }
+  if (!adc_poll_single_rank(&hadc2, &second)) {
+    print("[adc] read2 ch=%lu failed", (unsigned long)channel);
+    return false;
+  }
+
+  if (raw_first) {
+    *raw_first = first;
+  }
+  if (raw_second) {
+    *raw_second = second;
+  }
+  return true;
+}
+
+static void adc2_dump_regs_once(void) {
+  static bool dumped = false;
+  if (dumped) {
+    return;
+  }
+  dumped = true;
+
+  print("[adc] regs syscfg_cfgr1=0x%08lx gpioa_moder=0x%08lx adc2_cfgr=0x%08lx",
+        (unsigned long)SYSCFG->CFGR1,
+        (unsigned long)GPIOA->MODER,
+        (unsigned long)ADC2->CFGR);
+  print("[adc] regs adc2_cfgr2=0x%08lx adc2_sqr1=0x%08lx adc2_smpr1=0x%08lx",
+        (unsigned long)ADC2->CFGR2,
+        (unsigned long)ADC2->SQR1,
+        (unsigned long)ADC2->SMPR1);
+}
+
+static bool adc1_read_vrefint(uint16_t* vref_raw) {
+  ADC_ChannelConfTypeDef sConfig = {};
+  sConfig.Channel = ADC_CHANNEL_VREFINT;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_640CYCLES_5;
+  sConfig.SingleDiff = ADC_SINGLE_ENDED;
+  sConfig.OffsetNumber = ADC_OFFSET_NONE;
+  sConfig.Offset = 0;
+
+  (void)HAL_ADC_Stop(&hadc1);
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK) {
+    print("[adc] cfg vrefint failed");
+    return false;
+  }
+  uint16_t throwaway = 0;
+  if (!adc_poll_single_rank(&hadc1, &throwaway)) {
+    print("[adc] prime vrefint failed");
+    return false;
+  }
+  if (!adc_poll_single_rank(&hadc1, vref_raw)) {
+    print("[adc] read vrefint failed");
+    return false;
+  }
+  return true;
+}
+
+static bool adc2_read_pa7_once(uint16_t* pa7_raw) {
+  uint16_t pa7_first = 0;
+  uint16_t pa7_second = 0;
+
+  if (!adc2_read_channel_stable(ADC_CHANNEL_4, &pa7_first, &pa7_second)) {
+    return false;
+  }
+
+  adc2_scan_raw[1] = pa7_second;
+
+  if (pa7_raw) {
+    *pa7_raw = pa7_second;
+  }
+
+  print("[adc] settle pa7=%u->%u",
+        (unsigned)pa7_first,
+        (unsigned)pa7_second);
+  return true;
+}
+
+template <typename T>
+T test_pair(T x) {
   return x;
 }
 
@@ -37,71 +149,42 @@ void spi_test_once() {
           angle21, angle_deg);
 }
 
-static bool adc2_scan_read_once(uint16_t* vbus_raw, uint16_t* temp_raw) {
-  // 保险起见，先停掉上一次可能残留的规则组转换。
-  (void)HAL_ADC_Stop(&hadc2);
-
-  if (HAL_ADC_Start(&hadc2) != HAL_OK) {
-    print("[adc] start failed");
-    return false;
-  }
-
-  if (HAL_ADC_PollForConversion(&hadc2, 20) != HAL_OK) {
-    print("[adc] poll rank1 failed");
-    HAL_ADC_Stop(&hadc2);
-    return false;
-  }
-  adc2_scan_raw[0] = (uint16_t)HAL_ADC_GetValue(&hadc2); // PA6 / ADC2_IN3
-
-  if (HAL_ADC_PollForConversion(&hadc2, 20) != HAL_OK) {
-    print("[adc] poll rank2 failed");
-    HAL_ADC_Stop(&hadc2);
-    return false;
-  }
-  adc2_scan_raw[1] = (uint16_t)HAL_ADC_GetValue(&hadc2); // PA7 / ADC2_IN4
-
-  HAL_ADC_Stop(&hadc2);
-
-  if (vbus_raw) {
-    *vbus_raw = adc2_scan_raw[0];
-  }
-  if (temp_raw) {
-    *temp_raw = adc2_scan_raw[1];
-  }
-  return true;
-}
-
 void adc2_pa7_thermistor_test_once() {
-  uint16_t vbus_raw = 0;
+  adc2_dump_regs_once();
+
+  uint16_t vref_raw = 0;
   uint16_t pa7_raw = 0;
-  if (!adc2_scan_read_once(&vbus_raw, &pa7_raw)) {
+  if (!adc1_read_vrefint(&vref_raw)) {
+    return;
+  }
+  if (!adc2_read_pa7_once(&pa7_raw)) {
     return;
   }
 
-  constexpr float vref = 3.3f;
   constexpr float pullup_r = 10000.0f; // 3.3V -> 10k -> PA7 -> NTC -> GND
   constexpr float ntc_r25 = 10000.0f;  // NTC 10k @ 25C
   constexpr float ntc_beta = 3380.0f;  // NCP18XH103F03RB
   constexpr float t25_k = 25.0f + 273.15f;
+  const uint32_t vdda_mv = __HAL_ADC_CALC_VREFANALOG_VOLTAGE(vref_raw, ADC_RESOLUTION_12B);
+  const float vdda = (float)vdda_mv / 1000.0f;
 
-  const float pa6_voltage = (float)vbus_raw * (vref / 4095.0f);
-  const float pa7_voltage = (float)pa7_raw * (vref / 4095.0f);
+  const float pa7_voltage = (float)pa7_raw * (vdda / 4095.0f);
 
-  if (pa7_voltage <= 0.001f || pa7_voltage >= (vref - 0.001f)) {
-    print("[adc] pa6_raw=%u pa6_voltage=%.3fV pa7_raw=%u pa7_voltage=%.3fV out of range",
-          (unsigned)vbus_raw,
-          pa6_voltage,
+  if (pa7_voltage <= 0.001f || pa7_voltage >= (vdda - 0.001f)) {
+    print("[adc] vref=%u vdda=%lumV pa7=%u/%.3fV out",
+          (unsigned)vref_raw,
+          (unsigned long)vdda_mv,
           (unsigned)pa7_raw,
           pa7_voltage);
     return;
   }
 
-  const float ntc_r = pullup_r * pa7_voltage / (vref - pa7_voltage);
+  const float ntc_r = pullup_r * pa7_voltage / (vdda - pa7_voltage);
   const float temp_k = 1.0f / ((1.0f / ntc_beta) * logf(ntc_r / ntc_r25) + (1.0f / t25_k));
   const float temp_c = temp_k - 273.15f;
-  print("[adc] pa6_raw=%u pa6_voltage=%.3fV pa7_raw=%u pa7_voltage=%.3fV ntc_r=%.1fohm temp_c=%.2f",
-        (unsigned)vbus_raw,
-        pa6_voltage,
+  print("[adc] vref=%u vdda=%lumV pa7=%u/%.3fV ntc=%.1fohm t=%.2fC",
+        (unsigned)vref_raw,
+        (unsigned long)vdda_mv,
         (unsigned)pa7_raw,
         pa7_voltage,
         ntc_r,

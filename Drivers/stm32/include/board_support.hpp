@@ -6,33 +6,24 @@
 // 例：sleep(0.5) => HAL_Delay(500)
 #define sleep(s) HAL_Delay((uint32_t)((s) * 1000.0))
 
-// 软件定时器宏，需要放到主循环内（非阻塞运行,绝对时间戳）
-#define EXECUTE_EVERY_N_MS(MS, X)  do { \
-    static uint32_t next_##__LINE__ = 0; \
+// 软件定时器宏，需要放到主循环内（非阻塞运行,绝对时间戳,只要执行间隔 < 计数器半周期）
+#define EXECUTE_EVERY_N_MS(MS, X) do { \
+    static uint32_t last_##__LINE__ = 0; \
     uint32_t now_##__LINE__ = HAL_GetTick(); \
-    if (next_##__LINE__ == 0) { \
-        next_##__LINE__ = now_##__LINE__ + (MS); \
-    } \
-    if ((int32_t)(now_##__LINE__ - next_##__LINE__) >= 0) { \
+    if (now_##__LINE__ - last_##__LINE__ >= (MS)) { \
         X; \
-        next_##__LINE__ += (MS); \
+        last_##__LINE__ = now_##__LINE__; \
     } \
 } while(0)
 
-#define EXECUTE_EVERY_N_US(US, X)  do { \
-    static uint32_t next_##__LINE__ = 0; \
+#define EXECUTE_EVERY_N_US(US, X) do { \
+    static uint32_t last_##__LINE__ = 0; \
     uint32_t now_##__LINE__ = micros(); \
-    if (next_##__LINE__ == 0) { \
-        next_##__LINE__ = now_##__LINE__ + (US); \
-    } \
-    if ((int32_t)(now_##__LINE__ - next_##__LINE__) >= 0) { \
+    if (now_##__LINE__ - last_##__LINE__ >= (US)) { \
         X; \
-        next_##__LINE__ += (US); \
+        last_##__LINE__ = now_##__LINE__; \
     } \
 } while(0)
-
-
-
 
 #ifdef __cplusplus
 extern "C" {

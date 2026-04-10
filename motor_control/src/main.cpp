@@ -54,7 +54,7 @@ extern "C" int main(void)
   {  
     EXECUTE_EVERY_N_MS(100,can_test();); // can测试，100ms=10hz
     // EXECUTE_EVERY_N_MS(10,spi_test_once(););   
-    EXECUTE_EVERY_N_MS(10,adc2_pa7_thermistor_test_once(););   // 热敏电阻
+    EXECUTE_EVERY_N_MS(100,adc2_pa7_thermistor_test_once(););   // 热敏电阻
   }
   for(;;);
 }
