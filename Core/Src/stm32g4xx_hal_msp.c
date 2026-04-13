@@ -69,6 +69,8 @@ void HAL_MspInit(void)
   HAL_SYSCFG_EnableIOSwitchBooster();
 
   /* USER CODE END MspInit 0 */
+
+  __HAL_RCC_SYSCFG_CLK_ENABLE();
   __HAL_RCC_PWR_CLK_ENABLE();
 
   /* System interrupt init*/

@@ -9,7 +9,7 @@ project(stm32g474_foc C CXX ASM)
 # 构建类型
 # ============================================
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
     message(STATUS "未指定构建类型，默认使用: ${CMAKE_BUILD_TYPE}")
 endif()
 

@@ -44,8 +44,6 @@ uint32_t micros(void);        // 读取自启动以来的微秒时间戳
 void delay_us(uint32_t us);   // us 级忙等延时
 void print_memory_usage(void); // 打印 FLASH/RAM 使用情况
 void board_init(void);         // 板级初始化：HAL + 时钟 + 所有外设
-bool can_start(void);         //
-void can_test(void);         //
 
 #ifdef __cplusplus
 }
@@ -241,5 +239,4 @@ inline void print(const T& value, const Rest&... rest) {
 // 例：print("val=%d", x)  =>  printf("val=%d\r\n", x)
 #define print(fmt, ...) printf(fmt "\r\n", ##__VA_ARGS__)
 #endif
-
 

@@ -3,6 +3,7 @@
 #include "timer.hpp"             /* TaskTimer, LogicTimer, MEASURE_TIME */
 #include "low_level.hpp"
 #include "phase_control_law.hpp"
+#include "interface_test.hpp"
 #include "test_m.hpp"
 
 /* TaskTimer::enabled */
@@ -14,7 +15,7 @@ extern "C" int main(void)
   board_init();
   // MX_CORDIC_Init(); // 硬件三角函数
   sleep(5);
-  can_start();
+  // can_start();
   print_memory_usage();
   timing_init(); /* 启动 DWT CYCCNT */
 
@@ -49,14 +50,12 @@ extern "C" int main(void)
 
   print("DemoController: err=%d  tA=%.3f  tB=%.3f  tC=%.3f",err, pwm[0], pwm[1], pwm[2]);
   /* 期望输出：tA<tB<tC，三个值均在[0,1]内，err=0 */
-  spi_test_once();
   for(;;)
   {  
-    EXECUTE_EVERY_N_MS(100,can_test();); // can测试，100ms=10hz
-    // EXECUTE_EVERY_N_US(5000,spi_test_once(););   // mt6835测试
-    EXECUTE_EVERY_N_MS(100,adc2_pa7_thermistor_test_once(););   // 热敏电阻
+    // EXECUTE_EVERY_N_MS(100,can_test();); // can测试，100ms=10hz
+    // EXECUTE_EVERY_N_MS(50,mt6835_test(););   // mt6835测试
+    EXECUTE_EVERY_N_MS(50,adc2_pa7_thermistor_test_once(););   // 热敏电阻
   }
   for(;;);
 }
-
 

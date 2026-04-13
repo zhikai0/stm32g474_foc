@@ -4,9 +4,6 @@
 #include <utility>
 #include "phase_control_law.hpp"
 
-void spi_test_once();
-void adc2_pa7_thermistor_test_once();
-
 class DemoController : public AlphaBetaFrameController {
 public:
     void reset() override;
